@@ -32,8 +32,8 @@ object exampleJoins extends App{
       "dept_name")
 
 
-  joinedDf
-    .show()
+//  joinedDf
+//    .show()
 
 
   val reviewsSchema = reviewsDf.schema
@@ -56,24 +56,12 @@ object exampleJoins extends App{
     "src/main/resources/departments",
     departmentSchema)
 
-
-  reviewsStreamDf.writeStream
-      .format("console")
-      .outputMode("append")
-      .start()
-      .awaitTermination()
-
-
-  departmentsStreamDf.writeStream
-    .format("console")
-    .outputMode("append")
-    .start()
-    .awaitTermination()
-
+//
 //  val joinedStreamDf = reviewsStreamDf
 //    .join(
 //      departmentsDf,
-//      reviewsStreamDf.col("Department") === departmentsDf.col("dept_code"))
+//      reviewsStreamDf.col("Department") === departmentsDf.col("dept_code"),
+//    "inner")
 //    .select("Title", "Department", "dept_name")
 //
 //
@@ -84,4 +72,23 @@ object exampleJoins extends App{
 //    .start()
 //
 //  joinQuery.awaitTermination()
+
+
+  val testJoins = reviewsDf
+    .join(departmentsStreamDf,
+      reviewsDf.col("Department") === departmentsStreamDf.col("dept_code"),
+      "cross"
+    )
+    .select("Title", "Department", "dept_name")
+
+
+  val testQuery = testJoins
+    .writeStream
+    .format("console")
+    .outputMode("append")
+    .start()
+
+  testQuery.awaitTermination()
+
+
 }
