@@ -1,6 +1,8 @@
 package chapter2
 
 import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.functions._
+import org.apache.spark.sql.streaming.Trigger
 import org.apache.spark.sql.types._
 
 object Task1 extends App{
@@ -29,10 +31,23 @@ object Task1 extends App{
     .csv("src/main/resources/task1")
 
 
-  iotStreamDf.writeStream
-    .format("console")
+  val dataStreamDf = iotStreamDf
+    .withColumn("temp_celsius",
+      (col("temp") - 32) * 5 / 9
+    )
+    .withColumn("datetime", to_timestamp(col("ts").cast(TimestampType)))
+    .withWatermark("datetime", "2 minutes")
+    .groupBy(window(col("datetime"), "2 minutes"), col("device"))
+    .agg(avg(col("temp_celsius")).as("avg_temp_celsius"))
+
+
+  val result = dataStreamDf.writeStream
     .outputMode("append")
+    .format("console")
+    .trigger(Trigger.ProcessingTime("1 minute"))
     .start()
-    .awaitTermination()
+
+
+  result.awaitTermination()
 
 }
