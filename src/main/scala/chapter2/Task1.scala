@@ -31,23 +31,43 @@ object Task1 extends App{
     .csv("src/main/resources/task1")
 
 
-  val dataStreamDf = iotStreamDf
-    .withColumn("temp_celsius",
-      (col("temp") - 32) * 5 / 9
-    )
+  val filterStreamDF = iotStreamDf
+    .withColumn("temp_celsium",
+      (col("temp") - 32) * 5/9)
     .withColumn("datetime", to_timestamp(col("ts").cast(TimestampType)))
-    .withWatermark("datetime", "2 minutes")
-    .groupBy(window(col("datetime"), "2 minutes"), col("device"))
-    .agg(avg(col("temp_celsius")).as("avg_temp_celsius"))
+    .drop("ts")
+    .drop("co")
+    .drop("humidity")
+    .drop("light")
+    .drop("lpg")
+    .drop("motion")
+    .drop("smoke")
+    .drop("temp")
 
-
-  val result = dataStreamDf.writeStream
+  filterStreamDF.writeStream
     .outputMode("append")
     .format("console")
-    .trigger(Trigger.ProcessingTime("1 minute"))
     .start()
+    .awaitTermination()
 
 
-  result.awaitTermination()
+//  val dataStreamDf = iotStreamDf
+//    .withColumn("temp_celsius",
+//      (col("temp") - 32) * 5 / 9
+//    )
+//    .withColumn("datetime", to_timestamp(col("ts").cast(TimestampType)))
+//    .withWatermark("datetime", "2 minutes")
+//    .groupBy(window(col("datetime"), "2 minutes"), col("device"))
+//    .agg(avg(col("temp_celsius")).as("avg_temp_celsius"))
+//
+//
+//  val result = dataStreamDf.writeStream
+//    .outputMode("append")
+//    .format("console")
+//    .trigger(Trigger.ProcessingTime("1 minute"))
+//    .start()
+
+
+  //result.awaitTermination()
 
 }
