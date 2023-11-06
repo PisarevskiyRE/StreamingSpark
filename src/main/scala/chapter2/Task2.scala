@@ -1,8 +1,9 @@
 package chapter2
 
 import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.functions._
 import org.apache.spark.sql.streaming.OutputMode
-import org.apache.spark.sql.types.{IntegerType, StringType, StructField, StructType, TimestampType}
+import org.apache.spark.sql.types.{IntegerType, LongType, StringType, StructField, StructType, TimestampType}
 
 trait Context {
   val appName: String
@@ -32,7 +33,7 @@ object Task2 extends App with Context {
     StructField("PUBLISHER", StringType),
     StructField("CATEGORY", StringType),
     StructField("STORY", StringType),
-    StructField("TIMESTAMP", TimestampType)
+    StructField("TIMESTAMP", LongType)
   ))
 
 
@@ -43,23 +44,38 @@ object Task2 extends App with Context {
 
   val aggregatorStreamDf = spark.readStream
     .option("header", true)
-    .schema(categorySchema)
+    .schema(aggregatorSchema)
     .csv("src/main/resources/news_aggregator")
 
 
+  val joinCondition = categoryStreamDf.col("category") === aggregatorStreamDf.col("CATEGORY")
 
-//  categoryStreamDf.writeStream
-//    .outputMode(OutputMode.Append)
-//    .format("console")
-//    .start()
-//    //.awaitTermination()
-//
-//  aggregatorStreamDf.writeStream
-//    .outputMode(OutputMode.Append)
-//    .format("console")
-//    .start()
-//    .awaitTermination()
-//
+  val joinedStreamDf = aggregatorStreamDf
+    .join(categoryStreamDf, joinCondition)
+    .select(
+      from_unixtime(col("TIMESTAMP") / 1000).cast(TimestampType).as("Date"),
+      col("PUBLISHER").as("Publisher"),
+      col("category_name").as("Category")
+    )
 
+  val resultStreamDf = joinedStreamDf
+    .withWatermark("Date", "1 day")
+    .groupBy(
+      window(col("Date"), "1 day"),
+      col("Publisher"),
+      col("Category")
+    )
+    .agg(count("*").as("Cnt"))
 
+  resultStreamDf.writeStream
+    .outputMode(OutputMode.Append)
+    .format("console")
+    .option("truncate", "false")
+    .start()
+    .awaitTermination()
 }
+
+
+
+
+
