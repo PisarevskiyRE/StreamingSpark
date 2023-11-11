@@ -8,7 +8,7 @@ object DataSender extends App {
   val socket = new ServerSocket(12345).accept()
   val printStream = new PrintStream(socket.getOutputStream)
 
-  Thread.sleep(1000)
+  Thread.sleep(5000)
   printStream.println("d1,15.9")
   Thread.sleep(7000)
   printStream.println("d1,5.1")
