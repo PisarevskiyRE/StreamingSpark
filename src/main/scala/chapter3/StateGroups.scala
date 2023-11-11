@@ -80,6 +80,8 @@ object StateGroups extends App{
       totalRecordCount,
       totalTemp,
       totalTemp / totalRecordCount
+
+
     )
 
   }
