@@ -6,25 +6,30 @@ import org.apache.spark.sql.streaming.{GroupState, GroupStateTimeout, OutputMode
 
 
 
+
+
 object Task3_b extends App with Context {
+
+  case class Record(timeStamp: Timestamp, value: Long)
+
 
   override val appName: String = "rate"
 
   val streamDf = spark
     .readStream
     .format("rate")
-    .option("rowsPerSecond", 1)
+    .option("rowsPerSecond", 15)
     .load
 
   import spark.implicits._
 
   val processStreamDf = streamDf
     .as[(Timestamp, Long)]
-    .groupByKey( x => 1 )
-    .flatMapGroupsWithState(OutputMode.Update(), GroupStateTimeout.NoTimeout())(
+    .map(rec => rec._2)
+    .groupByKey( x => 1)
+    .flatMapGroupsWithState(OutputMode.Update(),GroupStateTimeout.NoTimeout())(
       updateAverage
     )
-
 
   processStreamDf.writeStream
     .outputMode(OutputMode.Update())
@@ -33,48 +38,48 @@ object Task3_b extends App with Context {
     .start()
     .awaitTermination()
 
-  case class RunningCount(count: Long, sum: Long)
 
-  val BS: Int = 10
 
-  def updateAverage(
-                     key: Int,
-                     elements: Iterator[(Timestamp, Long)],
-                     state: GroupState[RunningCount]): Iterator[Double] = {
+  val cnt: Int = 10
 
-    val previousState: RunningCount = {
+
+  def updateAverage(  key: Int,
+                      elements: Iterator[Long],
+                      state: GroupState[Seq[Long]]): Iterator[String] = {
+
+    val previousState: Seq[Long] = {
       if (state.exists) state.get
-      else RunningCount(0,0)
+      else Seq()
     }
 
 
-    val inputSorted: Seq[(Timestamp, Long)] = elements.toSeq.sortWith( (x,y) => x._1 > y._1 )
 
-    val inputSum = inputSorted.map(x => x._2).sum
-    val inputCount = inputSorted.length
+    val allElements: Seq[Long] = previousState ++ elements.toSeq.sortWith( (a,b) => a < b)
 
 
 
 
-    if ((previousState.count + inputCount) >= 10) {
+    if (allElements.size >= 10) {
+
+      val elemsForAvg = allElements.take(10)
+
+      val newState = allElements.slice(10, allElements.size)
+
+      //println(newState)
+
+      state.update(newState)
+
+      Iterator( "Для чисел => " +elemsForAvg.toString()+ "<= Среднее значение " +   (elemsForAvg.sum / 10).toString )
+
+    } else {
+
+      state.update(allElements)
 
 
-
-
-
-      Iterator(
-        previousState.sum + inputSorted.take((10 - previousState.count).toInt).map(x=>x._2).sum
-      )
-
+      Iterator("---")
     }
-    else Iterator()
+
+
   }
 }
 
-/*
-
-8(50) + 5(10)  >= 10
-
-8 + from 5(10 - 8)
-
- */
