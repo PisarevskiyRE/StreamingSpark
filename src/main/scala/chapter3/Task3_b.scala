@@ -4,8 +4,7 @@ import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.execution.streaming.FileStreamSource.Timestamp
 import org.apache.spark.sql.streaming.{GroupState, GroupStateTimeout, OutputMode}
 
-
-
+import scala.annotation.tailrec
 
 
 object Task3_b extends App with Context {
@@ -58,28 +57,41 @@ object Task3_b extends App with Context {
 
 
 
+    // так как чисел может прилететь сколько угодно много
+    // сделал рекурсию
+    def getTopNRows(elems: Seq[Long]): (Seq[Long], String) = {
+
+      @tailrec
+      def loop(x: Seq[Long], accumulator: String): (Seq[Long], String) = {
+
+        if (x.size < 10) (x, accumulator)
+        else {
+          val elemsForAvg = x.take(10)
+          val newState = x.slice(10, x.size)
+
+          loop(
+            newState
+            ,accumulator + "Для чисел => " +elemsForAvg.toString()+ "<= Среднее значение " + (elemsForAvg.sum / 10).toString + "\\n"
+          )
+        }
+      }
+      loop(elems, "")
+    }
 
     if (allElements.size >= 10) {
 
-      val elemsForAvg = allElements.take(10)
+      val newState = getTopNRows(allElements)
 
-      val newState = allElements.slice(10, allElements.size)
 
-      //println(newState)
-
-      state.update(newState)
-
-      Iterator( "Для чисел => " +elemsForAvg.toString()+ "<= Среднее значение " +   (elemsForAvg.sum / 10).toString )
+      state.update(newState._1)
+      Iterator( newState._2 )
 
     } else {
 
       state.update(allElements)
 
-
       Iterator("---")
     }
-
-
   }
 }
 
