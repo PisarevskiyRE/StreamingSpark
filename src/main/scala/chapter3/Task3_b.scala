@@ -11,13 +11,17 @@ object Task3_b extends App with Context {
 
   case class Record(timeStamp: Timestamp, value: Long)
 
-
   override val appName: String = "rate"
+
+  object DEFAULT{
+    val sliceCnt: Int = 10
+    val rowsPerSecond: Int = 15
+  }
 
   val streamDf = spark
     .readStream
     .format("rate")
-    .option("rowsPerSecond", 15)
+    .option("rowsPerSecond", DEFAULT.rowsPerSecond)
     .load
 
   import spark.implicits._
@@ -37,11 +41,6 @@ object Task3_b extends App with Context {
     .start()
     .awaitTermination()
 
-
-
-  val cnt: Int = 10
-
-
   def updateAverage(  key: Int,
                       elements: Iterator[Long],
                       state: GroupState[Seq[Long]]): Iterator[String] = {
@@ -51,46 +50,40 @@ object Task3_b extends App with Context {
       else Seq()
     }
 
-
-
     val allElements: Seq[Long] = previousState ++ elements.toSeq.sortWith( (a,b) => a < b)
-
-
 
     // так как чисел может прилететь сколько угодно много
     // сделал рекурсию
-    def getTopNRows(elems: Seq[Long]): (Seq[Long], String) = {
-
+    def getTopRows(elems: Seq[Long], cnt: Int): (Seq[Long], String) = {
       @tailrec
       def loop(x: Seq[Long], accumulator: String): (Seq[Long], String) = {
-
-        if (x.size < 10) (x, accumulator)
+        if (x.size < cnt) (x, accumulator)
         else {
-          val elemsForAvg = x.take(10)
-          val newState = x.slice(10, x.size)
-
+          val elemsForAvg = x.take(cnt)
+          val newState = x.slice(cnt, x.size)
           loop(
             newState
-            ,accumulator + "Для чисел => " +elemsForAvg.toString()+ "<= Среднее значение " + (elemsForAvg.sum / 10).toString + "\\n"
+            ,accumulator +
+              "Для чисел => " +
+              elemsForAvg.toString() +
+              " Среднее значение => " +
+              (elemsForAvg.sum / cnt).toString
           )
         }
       }
       loop(elems, "")
     }
 
-    if (allElements.size >= 10) {
+    if (allElements.size >= DEFAULT.sliceCnt) {
 
-      val newState = getTopNRows(allElements)
-
+      val newState = getTopRows(allElements, DEFAULT.rowsPerSecond)
 
       state.update(newState._1)
       Iterator( newState._2 )
 
     } else {
-
       state.update(allElements)
-
-      Iterator("---")
+      Iterator("--- пока еще пусто ---")
     }
   }
 }
