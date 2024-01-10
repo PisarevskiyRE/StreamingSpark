@@ -70,6 +70,7 @@ object Task3_b extends App with Context {
               (elemsForAvg.sum / cnt).toString
           )
         }
+
       }
       loop(elems, "")
     }
