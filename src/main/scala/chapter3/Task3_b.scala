@@ -1,6 +1,4 @@
 package chapter3
-
-import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.execution.streaming.FileStreamSource.Timestamp
 import org.apache.spark.sql.streaming.{GroupState, GroupStateTimeout, OutputMode}
 
@@ -64,7 +62,7 @@ object Task3_b extends App with Context {
           loop(
             newState
             ,accumulator +
-              "Для чисел => " +
+              " Для чисел => " +
               elemsForAvg.toString() +
               " Среднее значение => " +
               (elemsForAvg.sum / cnt).toString
@@ -76,7 +74,7 @@ object Task3_b extends App with Context {
 
     if (allElements.size >= DEFAULT.sliceCnt) {
 
-      val newState = getTopRows(allElements, DEFAULT.rowsPerSecond)
+      val newState = getTopRows(allElements, DEFAULT.sliceCnt)
 
       state.update(newState._1)
       Iterator( newState._2 )
@@ -87,4 +85,3 @@ object Task3_b extends App with Context {
     }
   }
 }
-

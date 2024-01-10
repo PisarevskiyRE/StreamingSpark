@@ -1,26 +1,86 @@
+import org.apache.spark.sql.execution.streaming.FileStreamSource.Timestamp
+import org.apache.spark.sql.streaming.{GroupState, GroupStateTimeout, OutputMode}
 
-val l1 : Seq[Int] = Seq(5,3,2,4,1).sortWith((a,b) => a < b)
-val l2 : Seq[Int] = Seq(6,7,8,8)
-
-
-val l3 = l1 ++ l2
-
-l3.take(5)
-l3.slice(5, l3.size)
+import scala.annotation.tailrec
 
 
+object Task3_b extends App with Context {
 
+  case class Record(timeStamp: Timestamp, value: Long)
 
-def factorialWithTailRecursion(n: Int): Int = {
+  override val appName: String = "rate"
 
-
-
-  def loop(x: Int, accumulator: Int): Int = {
-    if (x <= 1) accumulator
-    else loop(x-1, x*accumulator)
+  object DEFAULT{
+    val sliceCnt: Int = 10
+    val rowsPerSecond: Int = 15
   }
 
-  loop(n, 1)
-}
+  val streamDf = spark
+    .readStream
+    .format("rate")
+    .option("rowsPerSecond", DEFAULT.rowsPerSecond)
+    .load
 
-factorialWithTailRecursion(10)
+  import spark.implicits._
+
+  val processStreamDf = streamDf
+    .as[(Timestamp, Long)]
+    .map(rec => rec._2)
+    .groupByKey( x => 1)
+    .flatMapGroupsWithState(OutputMode.Update(),GroupStateTimeout.NoTimeout())(
+      updateAverage
+    )
+
+  processStreamDf.writeStream
+    .outputMode(OutputMode.Update())
+    .format("console")
+    .option("truncate", "false")
+    .start()
+    .awaitTermination()
+
+  def updateAverage(  key: Int,
+                      elements: Iterator[Long],
+                      state: GroupState[Seq[Long]]): Iterator[String] = {
+
+    val previousState: Seq[Long] = {
+      if (state.exists) state.get
+      else Seq()
+    }
+
+    val allElements: Seq[Long] = previousState ++ elements.toSeq.sortWith( (a,b) => a < b)
+
+    // так как чисел может прилететь сколько угодно много
+    // сделал рекурсию
+    def getTopRows(elems: Seq[Long], cnt: Int): (Seq[Long], String) = {
+      @tailrec
+      def loop(x: Seq[Long], accumulator: String): (Seq[Long], String) = {
+        if (x.size < cnt) (x, accumulator)
+        else {
+          val elemsForAvg = x.take(cnt)
+          val newState = x.slice(cnt, x.size)
+          loop(
+            newState
+            ,accumulator +
+              "Для чисел => " +
+              elemsForAvg.toString() +
+              " Среднее значение => " +
+              (elemsForAvg.sum / cnt).toString
+          )
+        }
+      }
+      loop(elems, "")
+    }
+
+    if (allElements.size >= DEFAULT.sliceCnt) {
+
+      val newState = getTopRows(allElements, DEFAULT.sliceCnt)
+
+      state.update(newState._1)
+      Iterator( newState._2 )
+
+    } else {
+      state.update(allElements)
+      Iterator("--- пока еще пусто ---")
+    }
+  }
+}
